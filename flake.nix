@@ -38,6 +38,7 @@
         "pi-simplify@0.2.3"
         "pi-hermes-memory@0.9.7"
         "@narumitw/pi-plan-mode@0.56.0"
+        "bigpowers@2.88.2"
       ];
     in
     flake-utils.lib.eachDefaultSystem (
@@ -128,6 +129,37 @@
         extraSkills = [ ];
         extraPrompts = [ ];
         extraThemes = [ ];
+        # --- pi-plan-mode (declarative /plan config) ---
+        # Wires through to ~/.pi/agent/pi-plan-mode.json. Empty safeSubcommands
+        # preserves the built-in fail-closed shell policy; omit toggleShortcut to
+        # keep the global Plan-mode keybinding disabled.
+        planThinkingLevel = "inherit";
+        planDefaultTools = [
+          "read"
+          "bash"
+          "grep"
+          "find"
+          "ls"
+          "memory_add"
+          "memory_remove"
+          "memory_search"
+          "memory_replace"
+          "session_search"
+          "todo_diagnose"
+          "todo_update"
+          "todo_write"
+          "todo_read"
+          "bigpowers_skill"
+          "nixoswiki_search"
+          "nixoswiki_read"
+          "nixoswiki_related"
+          "nixoswiki_sections"
+          "skill_manage"
+        ];
+        planRetention = "clear-on-start";
+        planExportPath = "PLAN.md";
+        planSafeSubcommands = { };
+        planShortcut = null;
 
         # --- Git extensions ---
         #   format: "git:github.com/owner/repo@rev" = "sha256-...";

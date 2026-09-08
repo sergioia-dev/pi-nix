@@ -6,6 +6,7 @@
   configStampValue,
   modelsJsonContent,
   keybindingsJsonContent,
+  planModeJsonContent,
   aiSkillsSrc,
 }:
 
@@ -38,6 +39,7 @@ pkgs.writeShellScriptBin "pi" ''
       rm -f "$PI_AGENT_DIR/settings.json"
       rm -f "$PI_AGENT_DIR/models.json"
       rm -f "$PI_AGENT_DIR/keybindings.json"
+      rm -f "$PI_AGENT_DIR/pi-plan-mode.json"
 
       ln -sfn ${settingsJson} "$PI_AGENT_DIR/settings.json"
 
@@ -47,6 +49,9 @@ pkgs.writeShellScriptBin "pi" ''
       cat > "$PI_AGENT_DIR/keybindings.json" << 'PI_KEYS_EOF'
     ${keybindingsJsonContent}
   PI_KEYS_EOF
+      cat > "$PI_AGENT_DIR/pi-plan-mode.json" << 'PI_PLAN_EOF'
+    ${planModeJsonContent}
+  PI_PLAN_EOF
 
       echo "$DESIRED_STAMP" > "$INSTALL_STAMP"
     else
