@@ -24,6 +24,31 @@
         { "id": "GLM_5.2",           "name": "GLM_5.2" },
         { "id": "Nemotron_Cascade",  "name": "Nemotron_Cascade" }
       ]
+    },
+    "kilo": {
+      "name": "Kilo",
+      "api": "openai-completions",
+      "baseUrl": "https://api.kilo.ai/api/openrouter",
+      "authHeader": false,
+      "apiKey": "kilo",
+      "models": [
+        {
+          "id": "kilo-auto/free",
+          "name": "Auto Free",
+          "contextWindow": 256000,
+          "maxTokens": 10000,
+          "reasoning": true,
+          "input": ["text"],
+          "compat": { "thinkingFormat": "openrouter" }
+        },
+        {
+          "id": "openrouter/free",
+          "name": "OpenRouter Free",
+          "contextWindow": 200000,
+          "maxTokens": 8192,
+          "input": ["text", "image"]
+        }
+      ]
     }
   }
 }

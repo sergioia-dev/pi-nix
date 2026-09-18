@@ -12,12 +12,10 @@
     "pi-env-probe": "0.1.5",
     "pi-hashline-edit-pro": "3.0.2",
     "pi-hermes-memory": "0.9.7",
-    "pi-kilocode": "0.1.2",
     "pi-loop-police": "1.14.1",
     "pi-nvim": "0.2.5",
     "pi-pixel-header": "1.0.2",
     "pi-simplify": "0.2.3",
-    "pi-vim": "0.14.2",
     "pi-web-access": "0.27.0"
   }
 }

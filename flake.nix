@@ -23,7 +23,7 @@
       #   nix run .#add-npm-dep
       # to regenerate extensions/package.json + extensions/package-lock.json.
       npmExtensionSpecs = [
-        "pi-vim@0.14.2"
+        # "pi-vim@0.14.2"
         "pi-nvim@0.2.5"
         "pi-catppuccin-tui@0.1.3"
         "@nguyenquangthai/pi-todo@0.6.3"
@@ -33,7 +33,6 @@
         "pi-loop-police@1.14.1"
         "@firstpick/pi-extension-nixos-wiki-local@0.1.7"
         "pi-env-probe@0.1.5"
-        "pi-kilocode@0.1.2"
         "pi-hashline-edit-pro@3.0.2"
         "pi-simplify@0.2.3"
         "pi-hermes-memory@0.9.7"
@@ -49,8 +48,8 @@
         inherit npmExtensionSpecs;
 
         # --- Model & Thinking ---
-        defaultProvider = "opencode";
-        defaultModel = "deepseek-v4-flash-free";
+        defaultProvider = "";
+        defaultModel = "";
         defaultThinkingLevel = null; # null = pi default ("off")
         hideThinkingBlock = true;
         showCacheMissNotices = false;

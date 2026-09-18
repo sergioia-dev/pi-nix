@@ -87,14 +87,20 @@
   extraExtensions ? [ ],
   extraSkills ? [ ],
   extraPrompts ? [ ],
-    extraThemes ? [ ],
-    # --- pi-plan-mode (declarative /plan config) ---
-    planThinkingLevel ? "inherit",
-    planDefaultTools ? [ "read" "bash" "grep" "find" "ls" ],
-    planRetention ? "clear-on-start",
-    planExportPath ? "PLAN.md",
-    planSafeSubcommands ? { },
-    planShortcut ? null,
+  extraThemes ? [ ],
+  # --- pi-plan-mode (declarative /plan config) ---
+  planThinkingLevel ? "inherit",
+  planDefaultTools ? [
+    "read"
+    "bash"
+    "grep"
+    "find"
+    "ls"
+  ],
+  planRetention ? "clear-on-start",
+  planExportPath ? "PLAN.md",
+  planSafeSubcommands ? { },
+  planShortcut ? null,
   gitExtensions,
   npmExtensionSrc,
   npmExtensionSpecs, # list of "name" or "name@version"
@@ -366,21 +372,30 @@ let
       implementationPlanRetention = planRetention;
       defaultPlanExportPath = planExportPath;
       safeSubcommands = planSafeSubcommands;
-    } // (if planShortcut != null then {
-      toggleShortcut = planShortcut;
-    } else { })
+    }
+    // (
+      if planShortcut != null then
+        {
+          toggleShortcut = planShortcut;
+        }
+      else
+        { }
+    )
   );
 
   settingsJson = pkgs.writeText "settings.json" settingsJsonContent;
   planModeJson = pkgs.writeText "pi-plan-mode.json" planModeJsonContent;
-
 
   # ---- Config stamp ----
   # Hash the full settings JSON + models + keybindings + ai-skills store
   # path so ANY setting change or skills-tree update triggers a runtime
   # config reinstall.
   configStampValue = builtins.hashString "sha256" (
-    settingsJsonContent + modelsJsonContent + keybindingsJsonContent + planModeJsonContent + "${aiSkillsSrc}"
+    settingsJsonContent
+    + modelsJsonContent
+    + keybindingsJsonContent
+    + planModeJsonContent
+    + "${aiSkillsSrc}"
   );
   # ---- Wrapper script ----
   piWrapper = import ./wrapper.nix {
@@ -415,7 +430,7 @@ in
     };
     # Alias of add-npm-dep: regenerate extensions/package.json +
     # package-lock.json from npmExtensionSpecs in flake.nix and re-sync.
-    update = {
+    add-npm-dep = {
       type = "app";
       program = "${addNpmDep}/bin/add-npm-dep";
     };
