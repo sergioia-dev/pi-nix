@@ -6,6 +6,7 @@
     "@firstpick/pi-extension-nixos-wiki-local": "0.1.7",
     "@gotgenes/pi-permission-system": "31.1.0",
     "@narumitw/pi-plan-mode": "0.56.0",
+    "@narumitw/pi-usage": "0.60.10",
     "@nguyenquangthai/pi-todo": "0.6.3",
     "bigpowers": "2.88.2",
     "pi-catppuccin-tui": "0.1.3",

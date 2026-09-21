@@ -24,6 +24,7 @@
       # to regenerate extensions/package.json + extensions/package-lock.json.
       npmExtensionSpecs = [
         # "pi-vim@0.14.2"
+        "@narumitw/pi-usage@0.60.10"
         "pi-nvim@0.2.5"
         "pi-catppuccin-tui@0.1.3"
         "@nguyenquangthai/pi-todo@0.6.3"
