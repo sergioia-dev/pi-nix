@@ -16,28 +16,7 @@
       "api": "openai-completions",
       "baseUrl": "https://llm.linktic.co/v1",
       "apiKey": "$LITELLM_API_KEY",
-      "models": [
-        { "id": "Auto_Model", "name": "Auto_Model" },
-        { "id": "Qwen_3.5", "name": "Qwen_3.5" },
-        { "id": "Qwen_3.6", "name": "Qwen_3.6" },
-        { "id": "MiniMax_2.7", "name": "MiniMax_2.7" },
-        { "id": "DeepSeek_V4", "name": "DeepSeek_V4" },
-        { "id": "DeepSeek_V3", "name": "DeepSeek_V3" },
-        { "id": "Kimi_K2.6", "name": "Kimi_K2.6" },
-        { "id": "GLM_5.2", "name": "GLM_5.2" },
-        { "id": "Nemotron_Cascade", "name": "Nemotron_Cascade" }
-      ]
-    },
-    "kilo": {
-      "name": "Kilo",
-      "api": "openai-completions",
-      "baseUrl": "https://api.kilo.ai/api/openrouter",
-      "authHeader": false,
-      "apiKey": "$KILO_API_KEY",
-      "models": [
-        { "id": "kilo-auto/free", "name": "Auto Free" },
-        { "id": "openrouter/free", "name": "OpenRouter Free" }
-      ]
+      "models": [{ "id": "DeepSeek_V4", "name": "DeepSeek_V4" }]
     }
   }
 }

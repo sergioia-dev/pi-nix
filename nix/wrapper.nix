@@ -18,7 +18,7 @@ pkgs.writeShellScriptBin "pi" ''
     export PI_CODING_AGENT_DIR="$PI_AGENT_DIR"
     export PI_HOME="$PI_AGENT_DIR"
     export PI_SKIP_VERSION_CHECK=1
-    export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs ]}:$PATH"
+    export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs pkgs.graphify pkgs.python3Packages.openai ]}:$PATH"
 
     mkdir -p "$PI_AGENT_DIR"
 
