@@ -23,7 +23,6 @@
       #   nix run .#add-npm-dep
       # to regenerate extensions/package.json + extensions/package-lock.json.
       npmExtensionSpecs = [
-        "graphify-pi@0.3.0"
         "@narumitw/pi-usage@0.60.10"
         "pi-nvim@0.2.5"
         "pi-catppuccin-tui@0.1.3"

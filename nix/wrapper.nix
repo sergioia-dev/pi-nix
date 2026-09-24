@@ -9,7 +9,37 @@
   planModeJsonContent,
   aiSkillsSrc,
 }:
+let
+  # graphify imports its optional features lazily (LLM backends, MCP server,
+  # watch mode, PDF/office ingestion, graph exports). nixpkgs ships them as
+  # `optional-dependencies` extras but installs none of them, so the commands
+  # the graphify skill documents die with "No module named ...". Pull the
+  # extras into `dependencies` so wrap-python-hook puts them on graphify's own
+  # sys.path (a PATH entry would not make them importable).
+  graphifyExtras = [
+    "openai"    # deepseek/openai/gemini/kimi/ollama backends + tiktoken
+    "anthropic" # claude backend
+    "bedrock"   # boto3 backend
+    "mcp"       # graphify --mcp (mcp + starlette)
+    "watch"     # graphify watch
+    "pdf"       # pypdf + markdownify: papers, `graphify add <url>`
+    "office"    # openpyxl + python-docx
+    "svg"       # graphify --svg (matplotlib)
+    "neo4j"     # graphify --neo4j
+    "postgres"  # graphify --postgres
+  ];
 
+  # nixpkgs' extras also miss two deps graphify really imports: scipy (networkx
+  # sparse layout behind --svg) and PyYAML (markdown frontmatter).
+  graphifyExtraPackages = with pkgs.python3Packages; [ scipy pyyaml ];
+
+  graphifyWithExtras = pkgs.graphify.overridePythonAttrs (old: {
+    dependencies =
+      (old.dependencies or [ ])
+      ++ graphifyExtraPackages
+      ++ pkgs.lib.concatMap (extra: pkgs.graphify.optional-dependencies.${extra}) graphifyExtras;
+  });
+in
 pkgs.writeShellScriptBin "pi" ''
     set -e
 
@@ -18,7 +48,7 @@ pkgs.writeShellScriptBin "pi" ''
     export PI_CODING_AGENT_DIR="$PI_AGENT_DIR"
     export PI_HOME="$PI_AGENT_DIR"
     export PI_SKIP_VERSION_CHECK=1
-    export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs pkgs.graphify pkgs.python3Packages.openai ]}:$PATH"
+    export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs graphifyWithExtras ]}:$PATH"
 
     mkdir -p "$PI_AGENT_DIR"
 
@@ -115,6 +145,18 @@ pkgs.writeShellScriptBin "pi" ''
     mkdir -p "$PI_AGENT_DIR/skills"
     if [ ! -L "$AI_SKILLS_AGENT" ] || [ "$(readlink "$AI_SKILLS_AGENT")" != "${aiSkillsSrc}" ]; then
       ln -sfn "${aiSkillsSrc}" "$AI_SKILLS_AGENT"
+    fi
+
+    # ---- graphify pi skill ----
+    # graphify ships its own pi skill (SKILL.md + references/). Install it into
+    # the agent skills dir so pi loads it natively as a user skill, instead of
+    # pulling it from the graphify-pi npm extension. Guarded by graphify's own
+    # version stamp so the python startup cost is paid only when the skill is
+    # missing or outdated.
+    GRAPHIFY_SKILL_DIR="$PI_AGENT_DIR/skills/graphify"
+    if [ "$(cat "$GRAPHIFY_SKILL_DIR/.graphify_version" 2>/dev/null)" != "${graphifyWithExtras.version}" ]; then
+      graphify install --platform pi >/dev/null 2>&1 ||
+        echo "warning: could not install the graphify pi skill; run 'graphify install --platform pi' manually" >&2
     fi
 
     exec ${basePi}/bin/pi "$@"

@@ -1,5 +1,25 @@
 {
   "providers": {
+    "deepseek": {
+      "baseUrl": "https://api.deepseek.com",
+      "api": "openai-completions",
+      "apiKey": "$DEEPSEEK_API_KEY",
+      "models": [
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "contextWindow": 1000000,
+          "maxTokens": 384000,
+          "input": ["text"],
+          "reasoning": true
+        },
+        {
+          "id": "deepseek-flash",
+          "name": "DeepSeek Flash",
+          "reasoning": true
+        }
+      ]
+    },
     "openrouter": {
       "apiKey": "$OPENROUTER_API_KEY"
     },
