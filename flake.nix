@@ -154,6 +154,10 @@
           "nixoswiki_related"
           "nixoswiki_sections"
           "skill_manage"
+          "web_search"
+          "fetch_content"
+          "get_search_content"
+          "nixoswiki_extract"
         ];
         planRetention = "clear-on-start";
         planExportPath = "PLAN.md";
