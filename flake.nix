@@ -48,8 +48,8 @@
         inherit npmExtensionSpecs;
 
         # --- Model & Thinking ---
-        defaultProvider = "";
-        defaultModel = "";
+        defaultProvider = "deepseek";
+        defaultModel = "deepseek-flash";
         defaultThinkingLevel = null; # null = pi default ("off")
         hideThinkingBlock = true;
         showCacheMissNotices = false;
