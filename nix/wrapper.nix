@@ -7,6 +7,7 @@
   modelsJsonContent,
   keybindingsJsonContent,
   planModeJsonContent,
+  subagentsJsonContent,
   aiSkillsSrc,
 }:
 let
@@ -57,6 +58,10 @@ pkgs.writeShellScriptBin "pi" ''
       cat > "$PI_AGENT_DIR/pi-plan-mode.json" << 'PI_PLAN_EOF'
     ${planModeJsonContent}
   PI_PLAN_EOF
+      mkdir -p "$PI_AGENT_DIR/extensions/subagent"
+      cat > "$PI_AGENT_DIR/extensions/subagent/config.json" << 'PI_SUBAGENTS_EOF'
+    ${subagentsJsonContent}
+  PI_SUBAGENTS_EOF
 
       echo "$DESIRED_STAMP" > "$INSTALL_STAMP"
     else
@@ -76,6 +81,10 @@ pkgs.writeShellScriptBin "pi" ''
         cat > "$PI_AGENT_DIR/keybindings.json" << 'PI_KEYS_EOF'
     ${keybindingsJsonContent}
   PI_KEYS_EOF
+        mkdir -p "$PI_AGENT_DIR/extensions/subagent"
+        cat > "$PI_AGENT_DIR/extensions/subagent/config.json" << 'PI_SUBAGENTS_EOF'
+    ${subagentsJsonContent}
+  PI_SUBAGENTS_EOF
         echo "$DESIRED_STAMP" > "$INSTALL_STAMP"
       fi
     fi
@@ -129,9 +138,15 @@ pkgs.writeShellScriptBin "pi" ''
     # version stamp so the python startup cost is paid only when the skill is
     # missing or outdated.
     GRAPHIFY_SKILL_DIR="$PI_AGENT_DIR/skills/graphify"
-    if [ "$(cat "$GRAPHIFY_SKILL_DIR/.graphify_version" 2>/dev/null)" != "${graphify.version}" ]; then
-      graphify install --platform pi >/dev/null 2>&1 ||
+    if [ "$(cat "$GRAPHIFY_SKILL_DIR/.graphify_version" 2>/dev/null)" != "${graphify.skillStamp}" ]; then
+      if graphify install --platform pi >/dev/null 2>&1; then
+        mkdir -p "$GRAPHIFY_SKILL_DIR"
+        # Overwrite graphify's plain __version__ stamp with our composite
+        # version+patch stamp so a patch-only change still reinstalls.
+        echo "${graphify.skillStamp}" > "$GRAPHIFY_SKILL_DIR/.graphify_version"
+      else
         echo "warning: could not install the graphify pi skill; run 'graphify install --platform pi' manually" >&2
+      fi
     fi
 
     exec ${basePi}/bin/pi "$@"

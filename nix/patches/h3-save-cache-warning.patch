@@ -1,0 +1,97 @@
+--- a/graphify/cache.py
++++ b/graphify/cache.py
+@@ -11,12 +11,14 @@
+ import warnings
+ from collections.abc import Callable, Iterable
+ from pathlib import Path
++from urllib.parse import unquote
+ 
+ # Output directory name — override with GRAPHIFY_OUT env var for worktrees or
+ # shared-output setups. Accepts a relative name ("graphify-out-feature") or an
+ # absolute path ("/shared/graphify-out"). Single source of truth in graphify.paths
+ # (#1423); re-exported here as _GRAPHIFY_OUT for the existing call sites.
+ from graphify.paths import GRAPHIFY_OUT as _GRAPHIFY_OUT
++from graphify.paths import nfc
+ from graphify.paths import os_replace_with_fallback as _os_replace_with_fallback
+ 
+ # AST cache entries are the output of graphify's own extractor code, so they
+@@ -1417,6 +1419,25 @@
+     return source_identity, normalize_value
+ 
+ 
++def _path_looks_mangled(value: str) -> bool:
++    """Whether a ``source_file`` is a percent-encoded or non-NFC path spelling.
++
++    Distinguishes the two very different causes behind the "no source_file
++    resolves to a real file" warning below: a genuinely mis-anchored ``root``,
++    versus a model that echoed back a mangled spelling of a dispatched file
++    (``%2D`` for ``-``, a decomposed accent). Only the second is fixable by
++    re-running, so the warning must not blame ``root`` for it (#1890/#2973).
++    """
++    if not value:
++        return False
++    try:
++        if unquote(value) != value:
++            return True
++    except Exception:  # noqa: BLE001 -- a malformed escape is not a mangled path
++        pass
++    return nfc(value) != value
++
++
+ def save_semantic_cache(
+     nodes: list[dict],
+     edges: list[dict],
+@@ -1630,6 +1651,7 @@
+ 
+     saved = 0
+     skipped_not_file = 0
++    skipped_paths: list[str] = []
+     for fpath, result in by_file.items():
+         cache_path, p = _recover_group_path(fpath)
+         if p.is_file():
+@@ -1708,13 +1730,41 @@
+             saved += 1
+         else:
+             skipped_not_file += 1
++            skipped_paths.append(str(fpath))
+     if skipped_not_file and skipped_not_file == len(by_file):
++        # Two unrelated causes used to share one message, which misdiagnosed both
++        # (#1890/#2973): the model mangling the paths it echoed back (percent
++        # encoding, non-NFC accents) was reported as "root is anchored to the
++        # wrong directory", sending the operator to fix a correct root. Name the
++        # offending paths and the cause that actually applies.
++        _names = sorted({Path(p).name for p in skipped_paths})
++        _shown = ", ".join(_names[:5])
++        if len(_names) > 5:
++            _shown += f" (+{len(_names) - 5} more)"
++        _mangled = [p for p in skipped_paths if _path_looks_mangled(p)]
++        if not Path(root).is_dir():
++            _cause = (
++                f"``root`` is not an existing directory, so no source_file can resolve "
++                "under it. Pass the corpus directory as ``root`` and the output "
++                "directory as ``cache_root`` (#1991)."
++            )
++        elif _mangled:
++            _cause = (
++                f"{len(_mangled)} of them are percent-encoded or non-NFC Unicode "
++                "spellings of dispatched files, so the model mangled the paths it echoed "
++                "back and ``root`` is not at fault. Those files are re-dispatched on the "
++                "next run; the graph itself still carries the mangled values until then."
++            )
++        else:
++            _cause = (
++                "This usually means ``root`` is anchored to the wrong directory (e.g. the "
++                "--out directory instead of the corpus root). Pass the corpus directory as "
++                "``root`` and the output directory as ``cache_root`` (#1991)."
++            )
+         warnings.warn(
+             f"save_semantic_cache: all {skipped_not_file} source_file group(s) were "
+-            "skipped because their paths do not resolve to real files. This usually "
+-            "means ``root`` is anchored to the wrong directory (e.g. the --out "
+-            "directory instead of the corpus root). Pass the corpus directory as "
+-            "``root`` and the output directory as ``cache_root`` (#1991).",
++            f"skipped because their paths do not resolve to real files under "
++            f"root={str(root)!r}: {_shown}. {_cause}",
+             RuntimeWarning,
+             stacklevel=2,
+         )

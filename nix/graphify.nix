@@ -11,7 +11,13 @@
 # Graphify straight from the upstream repo at a tag *we* pin, with the extras
 # the Pi skill documents already folded in.
 let
-  version = "0.9.67";
+  version = "0.9.78";
+
+  # Local patch revision. Bump whenever a patch below changes the installed
+  # pi skill text or CLI behaviour: the wrapper compares this composite stamp
+  # against ~/.pi/agent/skills/graphify/.graphify_version and re-runs
+  # `graphify install --platform pi` when it differs (see nix/wrapper.nix).
+  skillRevision = "2";
 
   # Per-language tree-sitter bindings live under `tree-sitter-grammars`.
   tsg = pkgs.python3Packages.tree-sitter-grammars;
@@ -114,7 +120,7 @@ let
       owner = "Graphify-Labs";
       repo = "graphify";
       tag = "v${version}";
-      hash = "sha256-Ea4PbIEJ/0stwTo8KF7DMD9oRsKvxCkFVozdR+Mka9U=";
+      hash = "sha256-WwcYQ3m/OtGmrO/kNd2ytUbHU3pnLeHc/vOCmJaQfg0=";
     };
 
     build-system = [ pkgs.python3Packages.setuptools ];
@@ -133,6 +139,35 @@ let
     # pname.
     dontCheckPythonMetadata = true;
 
+    # Defects found by the BANCO-WIKI corpus run (H1-H4 in the report), plus
+    # the pi-skill interface mismatch (M1/M2). Carried here until upstream
+    # releases them; each file is independently reviewable and has zero
+    # whitespace-only noise so it can be sent as a PR.
+    #
+    # Order matters: h1-omission-recovery.patch calls `_unit_rel`, which
+    # h4-reconcile-source-files.patch introduces.
+    #
+    #   skill-pi-subagents  skill dispatched chunks with an `Agent` tool and
+    #                       `subagent_type="general-purpose"`, neither of which
+    #                       exists in the pi harness (M1); also claimed only
+    #                       GEMINI_API_KEY is read (M2).
+    #   h4-reconcile       source_file values the model returned percent-encoded
+    #                       or non-NFC were never mapped back to the dispatched
+    #                       file, so nodes/edges pointed at dead paths and the
+    #                       end-of-run diff reported them as omissions (H4).
+    #   h1-omission         a clean, non-truncated chunk that silently omitted
+    #                       some of its files was only warned about at the end of
+    #                       the run, costing a whole-corpus re-extraction to
+    #                       recover them (H1/H2).
+    #   h3-save-cache       the all-groups-skipped warning blamed a wrong `root`
+    #                       for what mangled source_file values actually caused,
+    #                       and named no paths (H3).
+    patches = [
+      ./patches/skill-pi-subagents.patch
+      ./patches/h4-reconcile-source-files.patch
+      ./patches/h1-omission-recovery.patch
+      ./patches/h3-save-cache-warning.patch
+    ];
     meta = {
       description = "Turn any folder of code, docs, papers, images, or videos into a queryable knowledge graph.";
       homepage = "https://github.com/Graphify-Labs/graphify";
@@ -179,6 +214,10 @@ pkgs.runCommand "graphify-${version}" {
 
   passthru.python = graphifyEnv;
 
+  # Composite version+patch stamp the wrapper uses to decide whether the
+  # installed pi skill is current (see nix/wrapper.nix).
+  passthru.skillStamp = "${version}-pi-nix.${skillRevision}";
+
   meta = {
     description = "Turn any folder of code, docs, papers, images, or videos into a queryable knowledge graph.";
     homepage = "https://github.com/Graphify-Labs/graphify";
@@ -198,4 +237,11 @@ pkgs.runCommand "graphify-${version}" {
 
   # Fail the build if the launcher cannot even report its version.
   "$out/bin/graphify" --version
+
+  # The patch set is proven here, not assumed. This runs against the modules
+  # in `graphifyEnv`, so it fails the build if a patch stopped applying in
+  # effect (a hunk dropped as a fuzzy match, a helper renamed upstream, a
+  # version bump that silently reverted a fix). It stubs the LLM call out and
+  # writes its fixtures under TMPDIR: no network, no API key, no corpus.
+  ${graphifyEnv}/bin/python3.14 ${./patches/selfcheck-graphify-fixes.py}
 ''

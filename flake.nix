@@ -38,6 +38,7 @@
         "pi-hermes-memory@0.9.7"
         "@narumitw/pi-plan-mode@0.56.0"
         "bigpowers@2.88.2"
+        "pi-subagents@0.76.1"
       ];
     in
     flake-utils.lib.eachDefaultSystem (
@@ -128,6 +129,12 @@
         extraSkills = [ ];
         extraPrompts = [ ];
         extraThemes = [ ];
+
+        # --- pi-subagents (declarative config, ~/.pi/agent/extensions/subagent/config.json) ---
+        # "eager" registers the `subagent` tool from the first request instead of
+        # the `subagents_enable` loader, which is what consumers that dispatch
+        # children immediately (e.g. the graphify skill's Part B) rely on.
+        subagentsToolActivation = "eager";
         # --- pi-plan-mode (declarative /plan config) ---
         # Wires through to ~/.pi/agent/pi-plan-mode.json. Empty safeSubcommands
         # preserves the built-in fail-closed shell policy; omit toggleShortcut to

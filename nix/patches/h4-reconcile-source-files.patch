@@ -1,0 +1,150 @@
+--- a/graphify/llm.py
++++ b/graphify/llm.py
+@@ -16,6 +16,7 @@
+ from concurrent.futures import ThreadPoolExecutor, as_completed
+ from dataclasses import dataclass, replace
+ from pathlib import Path
++from urllib.parse import unquote
+ 
+ from graphify.extractors.base import _read_source_text
+ from graphify.file_slice import (
+@@ -25,6 +26,7 @@
+     read_slice_text,
+     unit_path,
+ )
++from graphify.paths import nfc
+ 
+ # `_read_files` truncates each file at this many characters before joining into
+ # the user message. Token estimates use the same cap so packing matches reality.
+@@ -768,6 +770,109 @@
+     return downgraded
+ 
+ 
++# -- source_file reconciliation (H4) ------------------------------------------
++# The extraction prompt asks the model to echo each file's path verbatim as
++# ``p.relative_to(root).as_posix()`` (see _read_files). Not every model complies:
++# some percent-encode it (``%2D`` for ``-``), some return a decomposed (NFD)
++# Unicode spelling of an accented name, some re-spell it absolutely or with a
++# ``./`` prefix. The mangled value does not resolve to a real file, so the #1895
++# out-of-scope filter cannot drop the item (that filter only drops items
++# attributed to an EXISTING but undispatched file) and the #1890
++# covered/uncovered diff consequently counts the real file as OMITTED. The graph
++# ends up with nodes/edges pointing at paths that do not exist, plus a phantom
++# "the model omitted these files" warning that costs the run a full
++# re-extraction.
++#
++# Reconcile each ``source_file`` against the files THIS call dispatched, before
++# the item leaves extract_files_direct, so the correction reaches the semantic
++# cache, the per-chunk checkpoints, the merged graph and the covered/uncovered
++# diff alike. Matching is deliberately conservative: exact first, then
++# equivalences that cannot be ambiguous (NFC, percent-decoding, path-shape
++# normalization), and a basename match only when exactly one dispatched file has
++# that basename. Anything left unmatched is untouched -- concept/anchor
++# source_file values (``concept:retry-policy``) are legitimate.
++def _unit_rel(unit, root: Path) -> str:
++    """The ``source_file`` string ``_read_files`` shows the model for one unit.
++
++    Single definition of that rule, so reconciliation and mismatch detection
++    compare against exactly the spelling the prompt asked for (including the
++    ``relative_to``-or-fallback behavior).
++    """
++    p = unit_path(unit)
++    try:
++        return p.relative_to(root).as_posix()
++    except ValueError:
++        return Path(p).as_posix()
++
++
++def _reconcile_candidates(value: str, root: Path | None = None) -> list[str]:
++    """Equivalent spellings of one path value to try, strongest first."""
++    seeds = [value]
++    if root is not None:
++        try:
++            p = Path(value)
++            if p.is_absolute():
++                seeds.append(p.relative_to(root).as_posix())
++        except (ValueError, OSError):
++            pass
++    out: list[str] = []
++    for seed in seeds:
++        if not seed:
++            continue
++        for decoded in (
++            seed,
++            nfc(seed),
++            unquote(seed),
++            nfc(unquote(seed)),
++            unquote(nfc(seed)),
++        ):
++            for form in (decoded, os.path.normpath(decoded).replace(os.sep, "/")):
++                if form and form not in out:
++                    out.append(form)
++    return out
++
++
++def _reconcile_source_files(result: dict, units: list, root: Path) -> int:
++    """Rewrite mangled ``source_file`` values to the dispatched path they denote.
++
++    Returns the number of items corrected. Best-effort: the caller guards it.
++    """
++    applicable = list(dict.fromkeys(_unit_rel(u, root) for u in units))
++    if not applicable:
++        return 0
++    exact = set(applicable)
++
++    spellings: dict[str, str] = {}
++    for rel in applicable:
++        for cand in _reconcile_candidates(rel):
++            spellings.setdefault(cand, rel)
++    by_name: dict[str, list[str]] = {}
++    for rel in applicable:
++        by_name.setdefault(Path(rel).name, []).append(rel)
++    for name, group in by_name.items():
++        if len(group) != 1:
++            continue  # ambiguous basename -- never guess which file is meant
++        for cand in _reconcile_candidates(name):
++            spellings.setdefault(cand, group[0])
++
++    corrected = 0
++    for bucket in ("nodes", "edges", "hyperedges"):
++        for item in result.get(bucket, []) or []:
++            if not isinstance(item, dict):
++                continue
++            sf = item.get("source_file")
++            if not isinstance(sf, str) or not sf or sf in exact:
++                continue
++            for cand in _reconcile_candidates(sf, root):
++                target = spellings.get(cand)
++                if target is not None:
++                    if target != sf:
++                        item["source_file"] = target
++                        corrected += 1
++                    break
++    return corrected
++
++
+ # ── Image (vision) handling ───────────────────────────────────────────────────
+ # Raster image types a vision model can actually look at. `.svg` is intentionally
+ # excluded: it is XML markup, so `_read_files` reads it as text (the model parses
+@@ -2061,6 +2166,21 @@
+     # the model actually saw (text_files, same cap as _read_files); images are
+     # excluded (binary, unverifiable). Best-effort — never abort extraction.
+     if isinstance(result, dict):
++        # Canonicalize the model's source_file spellings FIRST: the
++        # covered/uncovered diff below, the #1895 out-of-scope filter and
++        # _bind_node_evidence all key off that value, and a mangled path makes
++        # every one of them misfire. Best-effort, never aborts extraction.
++        try:
++            _n_reconciled = _reconcile_source_files(result, files, root)
++            if _n_reconciled:
++                print(
++                    f"[graphify] reconciled {_n_reconciled} source_file value(s) "
++                    "the model returned in a non-canonical spelling (percent-encoded "
++                    "or non-NFC path) back to the dispatched file",
++                    file=sys.stderr,
++                )
++        except Exception as _exc:  # noqa: BLE001 -- reconciliation is best-effort
++            print(f"[graphify] source_file reconciliation skipped: {_exc}", file=sys.stderr)
+         try:
+             _n_unverified = _bind_node_evidence(result, text_files, root)
+             if _n_unverified:

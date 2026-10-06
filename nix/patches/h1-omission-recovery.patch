@@ -1,0 +1,140 @@
+--- a/graphify/llm.py
++++ b/graphify/llm.py
+@@ -2424,6 +2424,68 @@
+     return sorted(seen)
+ 
+ 
++def _reported_source_files(result: dict) -> set[str]:
++    """Every ``source_file`` the model reported in one chunk result.
++
++    After ``_reconcile_source_files`` these are the canonical relative spellings
++    that ``_unit_rel`` produces, so a plain set difference against the dispatched
++    units identifies the files the model silently omitted.
++    """
++    out: set[str] = set()
++    for bucket in ("nodes", "edges", "hyperedges"):
++        for item in result.get(bucket, []) or []:
++            if isinstance(item, dict):
++                sf = item.get("source_file")
++                if isinstance(sf, str) and sf:
++                    out.add(sf)
++    return out
++
++
++def _unit_carries_no_text(unit, root: Path) -> bool:
++    """True when a dispatched unit has no non-whitespace text to extract from.
++
++    Such a file legitimately yields no nodes, so counting its absence as an
++    omission would re-dispatch it on every run down to the recursion cap and
++    stamp it partial forever. An unreadable file is likewise not the model's
++    fault.
++    """
++    p = unit_path(unit)
++    safe = _resolve_under_root(p, root)
++    if safe is None:
++        return True
++    try:
++        content = read_slice_text(unit) if isinstance(unit, FileSlice) else _file_to_text(safe)
++    except Exception:  # noqa: BLE001 -- unreadable is not an omission
++        return True
++    return not content.strip()
++
++
++def _missing_dispatched_rels(chunk: list, result: dict, root: Path) -> list[str]:
++    """Dispatched files this clean response omitted, in prompt order.
++
++    ``extract_corpus_parallel`` detects the same gap (#1890) only once every
++    chunk has been billed, and then merely warns -- so the recovery it promises
++    ("a re-run will retry them") costs a whole-corpus re-extraction. Detecting it
++    per chunk lets the adaptive-retry path re-dispatch just the omitted files
++    while the run is still in flight.
++    """
++    reported = _reported_source_files(result)
++    missing: list[str] = []
++    for unit in chunk:
++        rel = _unit_rel(unit, root)
++        if rel in reported or _unit_carries_no_text(unit, root):
++            continue
++        missing.append(rel)
++    return missing
++
++
++def _show_names(paths: list[str], limit: int = 5) -> str:
++    """``a.md, b.md (+3 more)`` -- shared by the omission warnings."""
++    names = [Path(p).name for p in paths]
++    shown = ", ".join(names[:limit])
++    return f"{shown} (+{len(names) - limit} more)" if len(names) > limit else shown
++
++
+ def _strip_partial_markers(result: dict) -> None:
+     """Remove the internal ``_partial`` marker from every item in ``result``.
+ 
+@@ -2614,6 +2676,68 @@
+         return result
+ 
+     if result.get("finish_reason") != "length":
++        # Omission recovery (#1890, per chunk). A clean, non-empty response can
++        # still omit some of the files it was given; those files then vanish from
++        # the graph with no node, no warning and no cache entry, while the run
++        # reports success. The end-of-run #1890 diff only notices afterwards, so
++        # the documented remedy -- "a re-run will retry them" -- re-processes the
++        # whole corpus to recover a handful of files.
++        #
++        # Recover the gap here instead, while the run is in flight. Only a
++        # PARTIAL omission is re-dispatched, and only for the omitted units, so
++        # the cost is one prompt for the gap rather than 2x the chunk; the parse
++        # already paid for is merged back in. A chunk that reported none of its
++        # files carries no evidence that input size caused it, and bisecting it
++        # would cost 2**max_depth calls to re-derive nodes that may legitimately
++        # not exist (#2927) -- those files are stamped partial for the next run
++        # instead, which is the same conservatism the truncation path uses.
++        #
++        # Unlike the truncation path, do NOT call _mark_partial on the result:
++        # the items it did return are complete and must stay cacheable. Only the
++        # omitted files go into _partial_files (the empty-parse mechanism, #1950).
++        _missing = _missing_dispatched_rels(chunk, result, root)
++        if not _missing:
++            return result
++        _missing_set = set(_missing)
++        _subset = [u for u in chunk if _unit_rel(u, root) in _missing_set]
++        if _depth < max_depth and 0 < len(_subset) < len(chunk):
++            print(
++                f"[graphify] chunk of {len(chunk)} omitted {len(_missing)} dispatched "
++                f"file(s) at depth {_depth}; re-extracting just those "
++                f"({_show_names(_missing)}) and keeping the rest",
++                file=sys.stderr,
++            )
++            sub = _extract_with_adaptive_retry(
++                _subset, backend, api_key, model, root, max_depth, _depth + 1, deep_mode=deep_mode
++            )
++            return {
++                "nodes": result.get("nodes", []) + sub.get("nodes", []),
++                "edges": result.get("edges", []) + sub.get("edges", []),
++                "hyperedges": result.get("hyperedges", []) + sub.get("hyperedges", []),
++                "input_tokens": result.get("input_tokens", 0) + sub.get("input_tokens", 0),
++                "output_tokens": result.get("output_tokens", 0) + sub.get("output_tokens", 0),
++                "model": model,
++                "finish_reason": "stop",
++                "_partial_files": _merged_partial_files(result, sub),
++            }
++        if len(_subset) == 1 and len(chunk) == 1:
++            halves = _split_lone_slice()
++            if halves is not None:
++                print(
++                    f"[graphify] slice of {unit_path(chunk[0])} came back without its own "
++                    f"content at depth {_depth}; splitting the slice and retrying",
++                    file=sys.stderr,
++                )
++                return _merge_two([halves[0]], [halves[1]])
++        print(
++            f"[graphify] chunk of {len(chunk)} omitted {len(_missing)} dispatched "
++            f"file(s) ({_show_names(_missing)}) and cannot re-dispatch them cheaply at "
++            f"depth {_depth}; marking them for re-extraction on the next run",
++            file=sys.stderr,
++        )
++        result["_partial_files"] = sorted(
++            set(_missing) | set(result.get("_partial_files", []) or [])
++        )
+         return result
+ 
+     if len(chunk) <= 1:

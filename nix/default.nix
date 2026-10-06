@@ -101,6 +101,9 @@
   planExportPath ? "PLAN.md",
   planSafeSubcommands ? { },
   planShortcut ? null,
+  # --- pi-subagents (declarative config) ---
+  # Written to $PI_AGENT_DIR/extensions/subagent/config.json. See flake.nix.
+  subagentsToolActivation ? "eager",
   gitExtensions,
   npmExtensionSrc,
   npmExtensionSpecs, # list of "name" or "name@version"
@@ -383,6 +386,14 @@ let
     )
   );
 
+  # ---- pi-subagents config JSON ----
+  # The pi-subagents extension reads this at session start from
+  # $PI_AGENT_DIR/extensions/subagent/config.json. "eager" keeps the
+  # `subagent` tool registered from the first request (no loader step).
+  subagentsJsonContent = builtins.toJSON {
+    toolActivation = subagentsToolActivation;
+  };
+
   settingsJson = pkgs.writeText "settings.json" settingsJsonContent;
   planModeJson = pkgs.writeText "pi-plan-mode.json" planModeJsonContent;
 
@@ -395,6 +406,7 @@ let
     + modelsJsonContent
     + keybindingsJsonContent
     + planModeJsonContent
+    + subagentsJsonContent
     + "${aiSkillsSrc}"
   );
   # ---- Wrapper script ----
@@ -409,6 +421,7 @@ let
       modelsJsonContent
       keybindingsJsonContent
       planModeJsonContent
+      subagentsJsonContent
       aiSkillsSrc
       ;
   };

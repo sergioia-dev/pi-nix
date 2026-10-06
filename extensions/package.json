@@ -17,6 +17,7 @@
     "pi-nvim": "0.2.5",
     "pi-pixel-header": "1.0.2",
     "pi-simplify": "0.2.3",
+    "pi-subagents": "0.76.1",
     "pi-web-access": "0.27.0"
   }
 }

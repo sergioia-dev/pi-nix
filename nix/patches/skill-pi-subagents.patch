@@ -1,0 +1,67 @@
+diff --git a/graphify/skill-pi.md b/graphify/skill-pi.md
+index 612da00..cc6a43e 100644
+--- a/graphify/skill-pi.md
++++ b/graphify/skill-pi.md
+@@ -160,14 +160,14 @@ Skip this step entirely if `detect` returned zero `video` files. When the corpus
+ 
+ This step has two parts: **structural extraction** (deterministic, free) and **semantic extraction** (LLM, costs tokens).
+ 
+-> **graphify needs no API key. Never ask the user for one, and never block on one.** Code is extracted structurally (AST) with no LLM and no key at all — a code-only corpus (the common `/graphify .` on a repo) skips semantic extraction entirely, so it needs nothing here: go straight to Part A and skip Part B. Semantic extraction (only for docs, papers, and images) uses Gemini **only if** `GEMINI_API_KEY`/`GOOGLE_API_KEY` is already set; otherwise the host agent itself is the LLM. graphify does **not** read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or any other provider key. If you catch yourself about to prompt for, wait on, or stop because of a missing API key, that is a misread of this skill — proceed without one.
++> **graphify needs no API key. Never ask the user for one, and never block on one.** Code is extracted structurally (AST) with no LLM and no key at all — a code-only corpus (the common `/graphify .` on a repo) skips semantic extraction entirely, so it needs nothing here: go straight to Part A and skip Part B. Semantic extraction (only for docs, papers, and images) uses Gemini **only if** `GEMINI_API_KEY`/`GOOGLE_API_KEY` is already set; otherwise the host agent itself is the LLM. graphify's standalone CLI/library path auto-detects whichever provider key is already exported (Gemini/`GEMINI_API_KEY`, Kimi, Claude, OpenAI, `DEEPSEEK_API_KEY`, Azure, Bedrock, Ollama) via `graphify.llm.detect_backend()`, but this skill never needs one: the agentic path below only auto-uses Gemini. If you catch yourself about to prompt for, wait on, or stop because of a missing API key, that is a misread of this skill — proceed without one.
+ 
+ **Before semantic extraction:** check whether `GEMINI_API_KEY` or `GOOGLE_API_KEY` is set. If neither is set, print this one-liner to the user:
+ > Tip: set `GEMINI_API_KEY` or `GOOGLE_API_KEY` to use Gemini for semantic extraction (`pip install 'graphifyy[gemini]'`).
+ 
+ Print it once, then continue — do not wait for the user to supply a key. If `GEMINI_API_KEY` or `GOOGLE_API_KEY` IS set, use `graphify.llm.extract_corpus_parallel(files, backend="gemini")` for semantic extraction instead of dispatching subagents. The default Gemini model is `gemini-3-flash-preview`; set `GRAPHIFY_GEMINI_MODEL` or pass `--model` in headless CLI flows to override it.
+ 
+-> **No other API keys are read.** When `GEMINI_API_KEY`/`GOOGLE_API_KEY` are unset, semantic extraction falls to the host agent itself — the running session is the LLM. On a host that dispatches subagents (e.g. Claude Code), dispatch them as written in Part B. On a host that runs the CLI directly in a terminal and cannot dispatch subagents, do not stall: a code-only corpus has no semantic work, so write the empty semantic file (Part B "Fast path") and continue to Part C; for a corpus with docs/papers/images, either set a Gemini key or extract those inline yourself, but in no case prompt for `ANTHROPIC_API_KEY` — that prompt is a misread of this skill.
++> **The skill never requires a provider key.** When `GEMINI_API_KEY`/`GOOGLE_API_KEY` are unset, semantic extraction falls to the host agent itself — the running session is the LLM. On a host that dispatches subagents (e.g. Claude Code), dispatch them as written in Part B. On a host that runs the CLI directly in a terminal and cannot dispatch subagents, do not stall: a code-only corpus has no semantic work, so write the empty semantic file (Part B "Fast path") and continue to Part C; for a corpus with docs/papers/images, either set a Gemini key or extract those inline yourself, but in no case prompt for a provider key — that prompt is a misread of this skill.
+ 
+ **Run Part A (AST) and Part B (semantic) in parallel. Dispatch all semantic subagents AND start AST extraction in the same message. Both can run simultaneously since they operate on different file types. Merge results in Part C as before.**
+ 
+@@ -211,7 +211,7 @@ Path('graphify-out/.graphify_semantic.json').write_text(json.dumps({'nodes':[],'
+ "
+ ```
+ 
+-**MANDATORY: You MUST use the Agent tool here. Reading files yourself one-by-one is forbidden - it is 5-10x slower. If you do not use the Agent tool you are doing this wrong.**
++**MANDATORY: You MUST dispatch these chunks with the `subagent` tool. Reading and extracting files yourself one-by-one is forbidden - it is 5-10x slower. If you extract every chunk inline instead of dispatching `subagent` calls, you are doing this wrong.**
+ 
+ Before dispatching subagents, print a timing estimate:
+ - Load `total_words` and file counts from `graphify-out/.graphify_detect.json`
+@@ -262,15 +262,15 @@ Load files from `graphify-out/.graphify_uncached.txt`. Split into chunks of 20-2
+ 
+ **Step B2 - Dispatch ALL subagents in a single message**
+ 
+-Call the Agent tool multiple times IN THE SAME RESPONSE - one call per chunk. This is the only way they run in parallel. If you make one Agent call, wait, then make another, you are doing it sequentially and defeating the purpose.
++Call the `subagent` tool once per chunk, all IN THE SAME RESPONSE - multiple tool calls in one response run in parallel. Pass `async: false` on every call: `subagent` is background by default (`asyncByDefault: true`), so without it the calls return before the chunk files exist. (A single call may instead pass `tasks: [{ agent, task }, ...]` to fan out and get the results back in order.) If you make one `subagent` call, wait, then make another, you are doing it sequentially and defeating the purpose.
+ 
+-**IMPORTANT - subagent type:** Always use `subagent_type="general-purpose"`. Do NOT use `Explore` - it is read-only and cannot write chunk files to disk, which silently drops extraction results. General-purpose has Write and Bash access which the subagent needs.
++**IMPORTANT - agent:** Always dispatch with a write-capable agent: `agent="delegate"` (or `agent="worker"`). Both carry `read`, `bash`, `edit`, and `write`, which is what writes the chunk file. Do NOT use a read-only agent (`oracle`, `reviewer`, `evidence-auditor`) - it cannot write chunk files to disk, which silently drops extraction results.
+ 
+ Concrete example for 3 chunks:
+ ```
+-[Agent tool call 1: files 1-15, subagent_type="general-purpose"]
+-[Agent tool call 2: files 16-30, subagent_type="general-purpose"]
+-[Agent tool call 3: files 31-45, subagent_type="general-purpose"]
++[subagent call 1: agent="delegate", async=false - extract files 1-15 -> chunk 01]
++[subagent call 2: agent="delegate", async=false - extract files 16-30 -> chunk 02]
++[subagent call 3: agent="delegate", async=false - extract files 31-45 -> chunk 03]
+ ```
+ All three in one message. Not three separate messages.
+ 
+@@ -291,12 +291,12 @@ See `references/extraction-spec.md` for the exact subagent prompt (JSON schema,
+ Wait for all subagents. For each result:
+ - Check that `graphify-out/.graphify_chunk_NN.json` exists on disk — this is the success signal
+ - If the file exists and contains valid JSON with `nodes` and `edges`, include it and save to cache
+-- If the file is missing, the subagent was likely dispatched as read-only (Explore type) — print a warning: "chunk N missing from disk — subagent may have been read-only. Re-run with general-purpose agent." Do not silently skip.
++- If the file is missing, the subagent was likely dispatched as a read-only agent — print a warning: "chunk N missing from disk — subagent may have been read-only. Re-run with a write-capable agent (agent=\"delegate\")." Do not silently skip.
+ - If a subagent failed or returned invalid JSON, print a warning and skip that chunk - do not abort
+ 
+-If more than half the chunks failed or are missing, stop and tell the user to re-run and ensure `subagent_type="general-purpose"` is used.
++If more than half the chunks failed or are missing, stop and tell the user to re-run and ensure a write-capable `subagent` agent (`agent="delegate"`) is used.
+ 
+-Merge all chunk files into `.graphify_semantic_new.json`. **After each Agent call completes, read the real token counts from the Agent tool result's `usage` field and write them back into the chunk JSON before merging** — the chunk JSON itself always has placeholder zeros. Then run:
++Merge all chunk files into `.graphify_semantic_new.json`. **After each `subagent` call completes, read the real token counts from the run result (pi-subagents reports input/output tokens) and, when it exposes them, write them back into the chunk JSON before merging** — the chunk JSON itself always has placeholder zeros; when the result reports no token counts, leave the zeros. Then run:
+ ```bash
+ $(cat graphify-out/.graphify_python) -c "
+ import json, glob
