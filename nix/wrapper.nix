@@ -8,6 +8,7 @@
   keybindingsJsonContent,
   planModeJsonContent,
   subagentsJsonContent,
+  bili,
   aiSkillsSrc,
 }:
 let
@@ -24,7 +25,20 @@ pkgs.writeShellScriptBin "pi" ''
     export PI_CODING_AGENT_DIR="$PI_AGENT_DIR"
     export PI_HOME="$PI_AGENT_DIR"
     export PI_SKIP_VERSION_CHECK=1
-    export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs graphify ]}:$PATH"
+    # `graphify.pythonShim` puts python/python3 on PATH for the fallback probes
+    # in graphify's own skill (SKILL.md Step 1) and its git hooks
+    # (graphify/hooks.py _PYTHON_DETECT). Both end in a bare `python3`, and NixOS
+    # has no ambient Python, so without it those probes die with "command not
+    # found" even though the launcher's own shebang resolves fine.
+    #
+    # `libnotify` supplies `notify-send`, which is the only backend
+    # node-notifier uses on Linux. @raidou/pi-notify resolves the notifier
+    # with `which.sync("notify-send")` and swallows the resulting error, so
+    # without it on PATH desktop notifications fail silently. NixOS has no
+    # ambient libnotify, hence the explicit entry.
+    # `bili` is the billion-context CLI (see nix/bili.nix); its entry point is
+    # already built into the npm extensions tree, this just puts it on PATH.
+    export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs pkgs.libnotify graphify graphify.pythonShim bili ]}:$PATH"
 
     mkdir -p "$PI_AGENT_DIR"
 

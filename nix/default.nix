@@ -104,6 +104,19 @@
   # --- pi-subagents (declarative config) ---
   # Written to $PI_AGENT_DIR/extensions/subagent/config.json. See flake.nix.
   subagentsToolActivation ? "eager",
+  # --- pi-notify (declarative config, settings.json `piNotify` key) ---
+  # @raidou/pi-notify reads these at session start. Delivery on Linux goes
+  # through node-notifier -> notify-send, which the wrapper puts on PATH.
+  piNotifyEnabled ? true,
+  piNotifyFinished ? true,
+  # false = also toast while the terminal is focused. Upstream default is
+  # true (unfocused only), which looks like "no notifications" when you are
+  # watching the session.
+  piNotifyOnlyWhenUnfocused ? false,
+  piNotifyUnfocusedActivityThresholdSecs ? 30,
+  piNotifyNotifyTools ? [ ],
+  piNotifyEvents ? { },
+  piNotifyTmuxSymbol ? "🔔",
   gitExtensions,
   npmExtensionSrc,
   npmExtensionSpecs, # list of "name" or "name@version"
@@ -363,6 +376,17 @@ let
 
     prompts = extraPrompts;
     themes = extraThemes;
+
+    # --- pi-notify (@raidou/pi-notify reads this block) ---
+    piNotify = {
+      enabled = piNotifyEnabled;
+      finished = piNotifyFinished;
+      onlyNotifyWhenUnfocused = piNotifyOnlyWhenUnfocused;
+      unfocusedActivityThresholdSecs = piNotifyUnfocusedActivityThresholdSecs;
+      notifyTools = piNotifyNotifyTools;
+      events = piNotifyEvents;
+      tmuxSymbol = piNotifyTmuxSymbol;
+    };
   };
   # ---- pi-plan-mode config JSON ----
   # Separate from settings.json; the extension reads it at session start
@@ -409,6 +433,19 @@ let
     + subagentsJsonContent
     + "${aiSkillsSrc}"
   );
+  # ---- Graphify (also exposed standalone) ----
+  # The wrapper already puts graphify on the PATH *inside* pi (see ./wrapper.nix).
+  # This export covers everywhere else: git hooks written by `graphify hook
+  # install`, editors/IDEs, and plain shells. The launcher alone is enough —
+  # graphify discovers its interpreter from the launcher's own shebang, so the
+  # profile does not need a python3 (see ./graphify.nix, passthru.pythonShim).
+  graphify = import ./graphify.nix { inherit pkgs lib; };
+
+  # ---- bili (billion-context CLI, also exposed standalone) ----
+  # Same npm extension is already built above; this only exposes its bundled
+  # `dist/index.js` on PATH (standalone + inside pi, see ./wrapper.nix).
+  bili = import ./bili.nix { inherit pkgs lib npmExtensions; };
+
   # ---- Wrapper script ----
   piWrapper = import ./wrapper.nix {
 
@@ -423,6 +460,7 @@ let
       planModeJsonContent
       subagentsJsonContent
       aiSkillsSrc
+      bili
       ;
   };
 
@@ -431,6 +469,8 @@ in
   packages = {
     default = piWrapper;
     pi = piWrapper;
+    graphify = graphify;
+    bili = bili;
   };
   apps = {
     default = {
@@ -440,6 +480,14 @@ in
     pi = {
       type = "app";
       program = "${piWrapper}/bin/pi";
+    };
+    graphify = {
+      type = "app";
+      program = "${graphify}/bin/graphify";
+    };
+    bili = {
+      type = "app";
+      program = "${bili}/bin/bili";
     };
     # Alias of add-npm-dep: regenerate extensions/package.json +
     # package-lock.json from npmExtensionSpecs in flake.nix and re-sync.

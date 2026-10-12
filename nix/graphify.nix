@@ -190,6 +190,24 @@ let
   # `-m graphify` invocation dies with "No module named graphify".
   graphifyEnv = pkgs.python3.withPackages (ps: [ graphifyPkg ]);
 
+  # `python3` / `python` on PATH for everything Graphify spawns.
+  #
+  # Graphify discovers its interpreter from PATH: the skill's Step 1 chain ends in
+  # a bare `python3`, and `graphify/hooks.py`'s _PYTHON_DETECT falls back to
+  # `python3` / `python` after its pinned/shebang probes. NixOS ships no ambient
+  # Python and this flake only ever put the *launcher* on PATH, so every one of
+  # those fallbacks was a guaranteed "command not found" (see nix/wrapper.nix).
+  #
+  # Expose the interpreters only. Adding `graphifyEnv/bin` wholesale would also
+  # put that env's ~40 console scripts (hf, httpx, distro, fonttools, f2py, ...)
+  # ahead of the user's own PATH and shadow same-named tools.
+  graphifyPython = pkgs.runCommand "graphify-python" { } ''
+    mkdir -p $out/bin
+    for name in python python3 python3.14; do
+      ln -s ${graphifyEnv}/bin/$name $out/bin/$name
+    done
+  '';
+
   # Note the interpreter path is the env's, and `withPackages` normally rewrites
   # console scripts into ELF launchers — which would defeat the shebang-based
   # discovery above. So install plain Python scripts instead.
@@ -213,6 +231,8 @@ pkgs.runCommand "graphify-${version}" {
   inherit version;
 
   passthru.python = graphifyEnv;
+  # Interpreters only, for PATH: see `graphifyPython` above.
+  passthru.pythonShim = graphifyPython;
 
   # Composite version+patch stamp the wrapper uses to decide whether the
   # installed pi skill is current (see nix/wrapper.nix).
