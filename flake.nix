@@ -39,8 +39,9 @@
         "@narumitw/pi-plan-mode@0.56.0"
         "bigpowers@2.88.2"
         "pi-subagents@0.76.1"
-        "@raidou/pi-notify@0.8.0"
         "billion-context@0.1.194"
+        "@dietrichgebert/ponytail@5.2.0"
+        "pi-desktop-notifications@0.1.1"
       ];
     in
     flake-utils.lib.eachDefaultSystem (
@@ -137,17 +138,6 @@
         # the `subagents_enable` loader, which is what consumers that dispatch
         # children immediately (e.g. the graphify skill's Part B) rely on.
         subagentsToolActivation = "eager";
-        # --- pi-notify (@raidou/pi-notify, declarative settings.json `piNotify` key) ---
-        # Delivery on Linux uses notify-send, which nix/wrapper.nix puts on
-        # pi's PATH. `onlyNotifyWhenUnfocused = false` also toasts while the
-        # terminal is focused (upstream default is true).
-        piNotifyEnabled = true;
-        piNotifyFinished = true; # toast on agent idle
-        piNotifyOnlyWhenUnfocused = true;
-        piNotifyUnfocusedActivityThresholdSecs = 30;
-        piNotifyNotifyTools = [ ]; # e.g. [ "ask_user" ]
-        piNotifyEvents = { }; # custom event channel -> message
-        piNotifyTmuxSymbol = " 󱚠 ";
         # --- pi-plan-mode (declarative /plan config) ---
         # Wires through to ~/.pi/agent/pi-plan-mode.json. Empty safeSubcommands
         # preserves the built-in fail-closed shell policy; omit toggleShortcut to
@@ -178,6 +168,19 @@
           "fetch_content"
           "get_search_content"
           "nixoswiki_extract"
+          "acp_cache"
+          "acp_delegate"
+          "acp_delegate_cancel"
+          "acp_delegate_wait"
+          "acp_status"
+          "anchor_grep"
+          "bg_wait"
+          "compress"
+          "decompress"
+          "search_context"
+          "source_check"
+          "subagent"
+          "subagent_supervisor"
         ];
         planRetention = "clear-on-start";
         planExportPath = "PLAN.md";
