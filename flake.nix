@@ -24,7 +24,6 @@
       # to regenerate extensions/package.json + extensions/package-lock.json.
       npmExtensionSpecs = [
         "@narumitw/pi-usage@0.60.10"
-        "pi-nvim@0.2.5"
         "pi-catppuccin-tui@0.1.3"
         "@nguyenquangthai/pi-todo@0.6.3"
         "pi-pixel-header@1.0.2"
@@ -128,7 +127,9 @@
 
         # --- Resources ---
         enableSkillCommands = true;
-        extraExtensions = [ ];
+        # pi-nvim is loaded from the neovim-nix checkout: the fork routes pi's
+        # slash commands and hardens the socket bridge, which npm 0.2.5 does not.
+        extraExtensions = [ "/home/sia/Personal/neovim-nix/plugins/pi" ];
         extraSkills = [ ];
         extraPrompts = [ ];
         extraThemes = [ ];
