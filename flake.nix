@@ -129,7 +129,7 @@
         enableSkillCommands = true;
         # pi-nvim is loaded from the neovim-nix checkout: the fork routes pi's
         # slash commands and hardens the socket bridge, which npm 0.2.5 does not.
-        extraExtensions = [ "/home/sia/Personal/neovim-nix/plugins/pi" ];
+        extraExtensions = [ "/home/sia/Personal/neovim-nix/plugins/pi-nvim" ];
         extraSkills = [ ];
         extraPrompts = [ ];
         extraThemes = [ ];
