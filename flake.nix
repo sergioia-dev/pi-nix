@@ -127,9 +127,12 @@
 
         # --- Resources ---
         enableSkillCommands = true;
-        # pi-nvim is loaded from the neovim-nix checkout: the fork routes pi's
-        # slash commands and hardens the socket bridge, which npm 0.2.5 does not.
-        extraExtensions = [ "/home/sia/Personal/neovim-nix/plugins/pi-nvim" ];
+        # pi-nvim is loaded from the neovim-nix submodule checkout: the fork routes
+        # pi's slash commands and hardens the socket bridge, which npm 0.2.5 does not.
+        # A missing/uninitialised checkout cannot be detected here: flake eval is
+        # pure, so builtins.pathExists on a path outside the flake reports false.
+        # The wrapper checks the path at launch instead (see nix/wrapper.nix).
+        extraExtensions = [ "/home/sia/Neovim-Nix/plugins/pi-nvim" ];
         extraSkills = [ ];
         extraPrompts = [ ];
         extraThemes = [ ];

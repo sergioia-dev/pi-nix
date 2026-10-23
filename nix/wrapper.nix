@@ -10,6 +10,7 @@
   subagentsJsonContent,
   bili,
   aiSkillsSrc,
+  extraExtensions ? [ ],
 }:
 let
   # Self-owned Graphify build: the upstream tag we pin, with every optional
@@ -41,6 +42,19 @@ pkgs.writeShellScriptBin "pi" ''
     export PATH="${pkgs.lib.makeBinPath [ pkgs.nodejs pkgs.libnotify graphify graphify.pythonShim bili ]}:$PATH"
 
     mkdir -p "$PI_AGENT_DIR"
+
+    # ---- Local extension sanity check ----
+    # Flake evaluation is pure, so builtins.pathExists on a path outside the
+    # flake source always reports false; the check has to happen here, at
+    # launch, where the real filesystem is visible.
+    for ext in ${pkgs.lib.escapeShellArgs extraExtensions}; do
+      if ! test -d "$ext"; then
+        echo "pi: warning: local extension path does not exist: $ext" >&2
+      elif ! test -f "$ext/index.ts" && ! test -f "$ext/package.json"; then
+        echo "pi: warning: local extension $ext is empty (uninitialised submodule?); pi-nvim session detection will not work" >&2
+        echo "pi: hint: git -C $(dirname "$(dirname "$ext")") submodule update --init" >&2
+      fi
+    done
 
     # Ensure ~/.pi symlink points to parent
     if ! test -L "$HOME/.pi" || test "$(readlink "$HOME/.pi")" != "$PI_PARENT"; then

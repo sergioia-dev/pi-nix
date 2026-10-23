@@ -461,6 +461,7 @@ let
       subagentsJsonContent
       aiSkillsSrc
       bili
+      extraExtensions
       ;
   };
 
