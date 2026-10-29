@@ -41,6 +41,7 @@
         "billion-context@0.1.194"
         "@dietrichgebert/ponytail@5.2.0"
         "pi-desktop-notifications@0.1.1"
+        "@sergioia-dev/pi-nvim@0.2.7"
       ];
     in
     flake-utils.lib.eachDefaultSystem (
